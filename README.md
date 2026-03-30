@@ -126,40 +126,47 @@ To fix this I created a DataStore class that uses the singleton pattern and ther
 I used ConcurrentHashMap instead of a normal HashMap because multiple requests can come in at the same time and ConcurrentHashMap handles that safely without data getting corrupted.
 
 1.2 - HATEOAS
+
 HATEOAS means the API includes links to other resources in its responses. 
 So when you hit the discovery endpoint at /api/v1 it gives you back links to /api/v1/rooms and /api/v1/sensors. 
 This means a developer doesn't need to read through loads of documentation to find out what URLs exist and they can just start at /api/v1 and follow the links.
 If the URLs ever change, the client automatically gets the new ones from the response rather than having them hardcoded somewhere that needs updating.
 
 2.1 - Returning IDs vs Full Objects
+
 If I only returned IDs in the rooms list, the client would have to make a separate GET request for every single room to get its details. 
 for example, Iif there are 100 rooms, that is 100 extra requests which is really slow. 
 Returning full objects means one request gives the client everything it needs straight away. 
 The downside is the response is bigger but since room objects are small this is worth it.
 
 2.2 - Is DELETE Idempotent
+
 Yes it is. The first time you DELETE a room it gets removed and you get a 200 response. 
 If you send the exact same DELETE request again the room is already gone so you get a 404. 
 The important thing is the server state is the same both times (the room does not exist). 
 Idempotent means the state stays the same no matter how many times you repeat the request which is true here.
 
 3.1 - @Consumes Annotation
+
 The @Consumes(MediaType.APPLICATION_JSON) annotation tells JAX-RS this method only accepts JSON. 
 If a client sends the data as text/plain or application/xml instead, JAX-RS will automatically reject it before the method even runs and send back a 415 Unsupported Media Type error. 
 This saves me from having to manually check the content type inside my code.
 
 3.2 - @QueryParam vs Path Segment
+
 Using ?type=CO2 as a query parameter is better than putting it in the URL path like /sensors/type/CO2 because the type is an optional filter and not a resource. 
 The actual resource is sensors. Query parameters are designed exactly for optional filtering and searching. 
 Also if I wanted to filter by multiple things like type and status at the same time, query parameters make that easy (?type=CO2&status=ACTIVE) whereas path-based filtering gets really messy.
 
 4.1 - Sub-Resource Locator Pattern
+
 Instead of putting all the reading endpoints inside SensorResource and making one massive class, I created a separate SensorReadingResource class just for readings. 
 The SensorResource class has a locator method with no HTTP annotation that returns an instance of SensorReadingResource when a request comes in for /readings. 
 This keeps the code organised and each class focused on one thing. 
 If the readings logic needs changing I only touch SensorReadingResource and don't risk breaking anything in SensorResource.
 
 5.2 - Why 422 Instead of 404
+
 404 means the URL you requested does not exist on the server. 
 But when I try to POST a sensor with a roomId that does not exist, the URL /api/v1/sensors definitely exists and was found. 
 The problem is inside the JSON body - the roomId value refers to something that does not exist. 
@@ -167,12 +174,14 @@ The problem is inside the JSON body - the roomId value refers to something that 
 It gives the developer a much clearer signal about what went wrong.
 
 5.4 - Risks of Exposing Stack Traces
+
 If the API returned raw Java stack traces to users it would expose a lot of sensitive information. 
 Attackers could see exactly which libraries and versions the app uses and look up known vulnerabilities for those versions. 
 They could also see the internal package structure and class names which helps them understand how the app works and find weak points. 
 My GlobalExceptionMapper catches every unhandled error and returns a simple generic 500 message so none of that internal information ever reaches the client.
 
 5.5 - Why Use Filters for Logging
+
 If I put Logger.info() statements inside every single resource method then the logging code would be duplicated everywhere and if I ever needed to change the logging format I would have to update every method individually. 
 Using a JAX-RS filter means the logging happens automatically for every single request and response in one place. 
 It also means if I add new endpoints, they automatically get logged without me having to remember to add logging code to them.
